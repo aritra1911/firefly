@@ -1,8 +1,10 @@
 import numpy as np
 
 TAU = 2 * np.pi
+
 MAX_FLIGHT_TIME = 30
-MAX_VELOCITY = 7
+MAX_VELOCITY = 0.01
+DEFAULT_GLOW_RADIUS = 0.003
 
 MEDIA_DIR = "/home/ray/codes/python/firefly/"
 DEFAULT_FILENAME = "firefly"

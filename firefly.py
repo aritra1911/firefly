@@ -9,6 +9,7 @@ class Firefly():
     def __init__(self, position, pixel_width, pixel_height):
         self.set_position(position, pixel_width, pixel_height)
         self.set_velocity(np.zeros(2))
+        self.radius = DEFAULT_GLOW_RADIUS
         self.reset()
 
     def reset(self):
@@ -27,6 +28,9 @@ class Firefly():
     def get_acceleration(self, target, run_time):
         return (target - self.velocity) / run_time
 
+    def get_radius(self):
+        return self.radius
+
     def flying(self):
         return self.in_flight
 
@@ -39,15 +43,20 @@ class Firefly():
     def set_target(self, target):
         self.target = target
 
+    def set_radius(self, radius):
+        self.radius = radius
+
     def init_acceleration(self):
         self.acceleration = (self.target - self.velocity) / self.flight_time
 
     def set_position(self, position, pixel_width, pixel_height):
+        aspect_ratio = pixel_width / pixel_height
+        if aspect_ratio >= 1:
+            correction_array = np.array([aspect_ratio, 1])
+        else:
+            correction_array = np.array([1, 1 / aspect_ratio])
         self.position = position
-        self.position %= np.array([
-            pixel_width,
-            pixel_height
-        ])
+        self.position %= correction_array
 
     def set_flight_time(self, time):
         self.flight_time = time
@@ -56,7 +65,8 @@ class Firefly():
         self.dt = dt
 
     def calculate_dt(self, frame_rate):
-        self.dt = self.flight_time / frame_rate
+        # self.dt = self.flight_time / frame_rate
+        self.dt = 1 / frame_rate
 
     def increment_elapsed_time(self):
         self.elapsed_time += self.dt
@@ -77,7 +87,6 @@ class Firefly():
         return np.fabs(np.angle(target) - np.angle(self.velocity))
 
     def move(self, pixel_width, pixel_height):
-        # dt = run_time / self.frame_rate * run_time
         self.update_velocity()
         self.update_position(pixel_width, pixel_height)
 
@@ -102,8 +111,13 @@ class Firefield:
         self.init_field()
 
     def create_new_firefly(self):
+        aspect_ratio = self.pixel_width / self.pixel_height
+        if aspect_ratio >= 1:
+            random_position = get_random_position(aspect_ratio, 1)
+        else:
+            random_position = get_random_position(1, 1 / aspect_ratio)
         self.fireflies.append(Firefly(
-            get_random_position(self.pixel_width, self.pixel_height),
+            random_position,
             self.pixel_width, self.pixel_height
         ))
 
@@ -121,10 +135,10 @@ class Firefield:
         self.ctx = cairo.Context(self.surface)
 
         # Normalizing the canvas
-        # self.ctx.scale(
-        #     self.pixel_width,
-        #     self.pixel_height
-        # )
+        self.ctx.scale(
+            self.pixel_height,
+            self.pixel_height
+        )
         self.paint_it_black()
         self.populate_field()
 
@@ -134,9 +148,8 @@ class Firefield:
 
     def draw_firefly(self, firefly, pattern):
         xc, yc = firefly.get_position()
-        radius = 3
         self.ctx.set_source(pattern)
-        self.ctx.arc(xc, yc, radius, 0, TAU)
+        self.ctx.arc(xc, yc, firefly.get_radius(), 0, TAU)
         self.ctx.fill()
 
     def populate_field(self):
@@ -144,14 +157,15 @@ class Firefield:
             self.create_new_firefly()
 
     def begin_animation(self, time):
-        elapsed_time = 0
+        total_frames = time * self.frame_rate
+        written_frames = 0
         self.writer.open_movie_pipe()
-        while elapsed_time < time:
+        while written_frames < total_frames:
             self.paint_it_black()
             self.fly()
             self.writer.write_frame(self.pixel_array)
-            elapsed_time += 1 / self.frame_rate
-            print(str((elapsed_time / time) * 100) + " %", end='\r')
+            written_frames += 1
+            print(str((written_frames / total_frames) * 100) + " %", end='\r')
         self.writer.close_movie_pipe()
 
     def fly(self):
@@ -169,7 +183,7 @@ class Firefield:
 
 
 def main():
-    field = Firefield(500)
+    field = Firefield(10)
     field.begin_animation(60)
 
 if __name__ == '__main__':
