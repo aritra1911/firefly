@@ -16,6 +16,7 @@ class Firefly():
         self.acceleration = np.zeros(2)
         self.set_flight_time(0)
         self.set_dt(0)
+        self.change_color()
         self.in_flight = False
         self.elapsed_time = 0
 
@@ -25,11 +26,17 @@ class Firefly():
     def get_velocity(self):
         return self.velocity
 
-    def get_acceleration(self, target, run_time):
-        return (target - self.velocity) / run_time
+    def get_target(self):
+        return self.target
+
+    def get_acceleration(self):
+        return self.acceleration
 
     def get_radius(self):
         return self.radius
+
+    def get_color(self):
+        return self.color
 
     def flying(self):
         return self.in_flight
@@ -90,6 +97,9 @@ class Firefly():
         self.update_velocity()
         self.update_position(pixel_width, pixel_height)
 
+    def change_color(self):
+        self.color = get_random_color()
+
 
 class Firefield:
     def __init__(self, population):
@@ -146,11 +156,25 @@ class Firefield:
         self.ctx.set_source(self.pattern["background"])
         self.ctx.paint()
 
+    def draw_vector(self, firefly, vector, color, magnitude=0.01):
+        xc, yc = firefly.get_position()
+        v = magnitude * (vector / np.linalg.norm(vector))
+        self.ctx.move_to(xc, yc)
+        self.ctx.line_to(xc + v[0], yc + v[1])
+        self.ctx.close_path()
+        self.ctx.set_source_rgb(*hex_to_rgb(color))  # Solid color
+        self.ctx.set_line_width(0.002)
+        self.ctx.stroke()
+
     def draw_firefly(self, firefly, pattern):
         xc, yc = firefly.get_position()
         self.ctx.set_source(pattern)
         self.ctx.arc(xc, yc, firefly.get_radius(), 0, TAU)
         self.ctx.fill()
+
+        self.draw_vector(firefly, firefly.get_velocity(), BLUE)
+        self.draw_vector(firefly, firefly.get_target(), GREEN)
+        self.draw_vector(firefly, firefly.get_acceleration(), RED)
 
     def populate_field(self):
         for _ in range(self.population):
@@ -175,9 +199,12 @@ class Firefield:
                 firefly.calculate_dt(self.frame_rate)
                 firefly.set_target(get_random_vector(self.max_magnitude))
                 firefly.init_acceleration()
+                firefly.change_color()
                 firefly.set_flying()
             firefly.move(self.pixel_width, self.pixel_height)
-            self.draw_firefly(firefly, self.pattern["foreground"])
+            self.draw_firefly(
+                firefly, cairo.SolidPattern(*hex_to_rgb(firefly.get_color()))
+            )
             if not firefly.increment_elapsed_time():
                 firefly.reset()
 

@@ -2,7 +2,7 @@ import numpy as np
 
 TAU = 2 * np.pi
 
-MAX_FLIGHT_TIME = 30
+MAX_FLIGHT_TIME = 5
 MAX_VELOCITY = 0.01
 DEFAULT_GLOW_RADIUS = 0.003
 
@@ -42,3 +42,21 @@ DEFAULT_PIXEL_WIDTH = DEFAULT_CAMERA_CONFIG["pixel_width"]
 DEFAULT_FRAME_RATE = DEFAULT_CAMERA_CONFIG["frame_rate"]
 
 FFMPEG_BIN = "ffmpeg"
+
+# Colors
+COLOR_MAP = {
+    "BLUE": "#58C4DD",
+    "TEAL": "#5CD0B3",
+    "GREEN": "#83C167",
+    "YELLOW": "#FFFF00",
+    "GOLD": "#F0AC5F",
+    "RED": "#FC6255",
+    "MAROON": "#C55F73",
+    "PURPLE": "#9A72AC",
+    "WHITE": "#FFFFFF",
+    "PINK": "#D147BD",
+    "ORANGE": "#FF862F",
+}
+
+PALETTE = list(COLOR_MAP.values())
+locals().update(COLOR_MAP)
