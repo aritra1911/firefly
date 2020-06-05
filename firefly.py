@@ -86,7 +86,7 @@ class Firefly():
 
     def update_position(self, pixel_width, pixel_height):
         self.set_position(
-            self.position + self.velocity,
+            self.position + self.velocity*self.dt,
             pixel_width, pixel_height
         )
 
@@ -172,9 +172,9 @@ class Firefield:
         self.ctx.arc(xc, yc, firefly.get_radius(), 0, TAU)
         self.ctx.fill()
 
-        self.draw_vector(firefly, firefly.get_velocity(), BLUE)
-        self.draw_vector(firefly, firefly.get_target(), GREEN)
-        self.draw_vector(firefly, firefly.get_acceleration(), RED)
+        # self.draw_vector(firefly, firefly.get_velocity(), BLUE)
+        # self.draw_vector(firefly, firefly.get_target(), GREEN)
+        # self.draw_vector(firefly, firefly.get_acceleration(), RED)
 
     def populate_field(self):
         for _ in range(self.population):
@@ -210,7 +210,7 @@ class Firefield:
 
 
 def main():
-    field = Firefield(10)
+    field = Firefield(40)
     field.begin_animation(60)
 
 if __name__ == '__main__':
