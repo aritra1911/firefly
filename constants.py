@@ -5,8 +5,9 @@ TAU = 2 * np.pi
 MAX_FLIGHT_TIME = 5
 MAX_VELOCITY = 0.2
 DEFAULT_GLOW_RADIUS = 0.003
+DEFAULT_SIM_TIMESTEP = 0.0001
 
-MEDIA_DIR = "/home/ray/codes/python/firefly/"
+MEDIA_DIR = "./"
 DEFAULT_FILENAME = "firefly"
 DEFAULT_MOVIE_EXTENSION = ".mp4"
 
@@ -18,7 +19,8 @@ PRODUCTION_QUALITY_CAMERA_CONFIG = {
 }
 
 HIGH_QUALITY_CAMERA_CONFIG = {
-    "pixel_height": 1080,
+    # "pixel_height": 1080,
+    "pixel_height": 1200,
     "pixel_width": 1920,
     "frame_rate": 60,
 }

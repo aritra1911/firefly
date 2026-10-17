@@ -42,7 +42,7 @@ class MovieWriter:
         )
 
     def write_frame(self, frame):
-        self.writing_process.stdin.write(frame.tostring())
+        self.writing_process.stdin.write(frame.tobytes())
 
     def close_movie_pipe(self):
         self.writing_process.stdin.close()

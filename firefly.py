@@ -1,21 +1,24 @@
-import numpy as np
 import cairo
+import numpy as np
+
 from constants import *
 from movie_writer import MovieWriter
 from utils import *
 
 
-class Firefly():
-    def __init__(self, position, pixel_width, pixel_height):
-        self.set_position(position, pixel_width, pixel_height)
+class Firefly:
+    def __init__(self, position):
+        self.set_position(position)
         self.set_velocity(np.zeros(2))
         self.radius = DEFAULT_GLOW_RADIUS
         self.reset()
 
+    def __repr__(self):
+        return f"position={self.position}, accleration={self.acceleration}, velocity={self.velocity}, in_flight={self.in_flight}"
+
     def reset(self):
         self.acceleration = np.zeros(2)
         self.set_flight_time(0)
-        self.set_dt(0)
         self.change_color()
         self.in_flight = False
         self.elapsed_time = 0
@@ -53,49 +56,29 @@ class Firefly():
     def set_radius(self, radius):
         self.radius = radius
 
-    def init_acceleration(self):
-        self.acceleration = (self.target - self.velocity) / self.flight_time
-
-    def set_position(self, position, pixel_width, pixel_height):
-        aspect_ratio = pixel_width / pixel_height
-        if aspect_ratio >= 1:
-            correction_array = np.array([aspect_ratio, 1])
-        else:
-            correction_array = np.array([1, 1 / aspect_ratio])
+    def set_position(self, position):
         self.position = position
-        self.position %= correction_array
 
     def set_flight_time(self, time):
         self.flight_time = time
 
-    def set_dt(self, dt):
-        self.dt = dt
+    def increment_elapsed_time(self, dt):
+        self.elapsed_time += dt
+        return self.elapsed_time < self.flight_time
 
-    def calculate_dt(self, frame_rate):
-        # self.dt = self.flight_time / frame_rate
-        self.dt = 1 / frame_rate
+    def update_acceleration(self):
+        delta_v = self.target - self.velocity
+        remaining_time = self.flight_time - self.elapsed_time
+        self.acceleration = delta_v / remaining_time
 
-    def increment_elapsed_time(self):
-        self.elapsed_time += self.dt
-        if self.elapsed_time >= self.flight_time:
-            return False
-        return True
+    def update_velocity(self, dv):
+        self.velocity += dv
 
-    def update_velocity(self):
-        self.velocity += self.acceleration * self.dt
-
-    def update_position(self, pixel_width, pixel_height):
-        self.set_position(
-            self.position + self.velocity*self.dt,
-            pixel_width, pixel_height
-        )
+    def nudge(self, dt):
+        self.set_position(self.position + self.velocity * dt)
 
     def angle_diff(self, target):
         return np.fabs(np.angle(target) - np.angle(self.velocity))
-
-    def move(self, pixel_width, pixel_height):
-        self.update_velocity()
-        self.update_position(pixel_width, pixel_height)
 
     def change_color(self):
         self.color = get_random_color()
@@ -106,49 +89,50 @@ class Firefield:
         self.pixel_width = DEFAULT_PIXEL_WIDTH
         self.pixel_height = DEFAULT_PIXEL_HEIGHT
         self.frame_rate = DEFAULT_FRAME_RATE
-        self.pixel_array_dtype = 'uint8'
+        self.pixel_array_dtype = "uint8"
         self.n_channels = 4
         self.pattern = {
-            "background" : cairo.SolidPattern(0, 0, 0),
-            "foreground" : cairo.SolidPattern(1, 1, 1)
+            "background": cairo.SolidPattern(0, 0, 0),
+            "foreground": cairo.SolidPattern(1, 1, 1),
         }
-        self.writer = MovieWriter(
-            self.pixel_width, self.pixel_height, self.frame_rate
-        )
-        self.fireflies = list()
+        self.writer = MovieWriter(self.pixel_width, self.pixel_height, self.frame_rate)
+        self.fireflies: list[Firefly] = []
         self.max_magnitude = MAX_VELOCITY
         self.population = population
+        self.dimensions = self.get_dimensions()
+        self.sim_dt = DEFAULT_SIM_TIMESTEP
+        self.render_dt = 1.0 / self.frame_rate
         self.init_field()
 
-    def create_new_firefly(self):
+    def get_dimensions(self) -> float:
         aspect_ratio = self.pixel_width / self.pixel_height
-        if aspect_ratio >= 1:
-            random_position = get_random_position(aspect_ratio, 1)
-        else:
-            random_position = get_random_position(1, 1 / aspect_ratio)
-        self.fireflies.append(Firefly(
-            random_position,
-            self.pixel_width, self.pixel_height
-        ))
+        if aspect_ratio >= 1.0:
+            return np.array([aspect_ratio, 1])
+        return np.array(np.array[1, aspect_ratio])
+
+    def create_new_firefly(self):
+        self.fireflies.append(
+            Firefly(
+                get_random_position(
+                    dimensions=self.dimensions,
+                    boundary=0.1,
+                )
+            )
+        )
 
     def init_field(self):
         self.pixel_array = np.zeros(
             (self.pixel_width, self.pixel_height, self.n_channels),
-            dtype=self.pixel_array_dtype
+            dtype=self.pixel_array_dtype,
         )
 
         self.surface = cairo.ImageSurface.create_for_data(
-            self.pixel_array,
-            cairo.FORMAT_ARGB32,
-            self.pixel_width, self.pixel_height
+            self.pixel_array, cairo.FORMAT_ARGB32, self.pixel_width, self.pixel_height
         )
         self.ctx = cairo.Context(self.surface)
 
         # Normalizing the canvas
-        self.ctx.scale(
-            self.pixel_height,
-            self.pixel_height
-        )
+        self.ctx.scale(self.pixel_height, self.pixel_height)
         self.paint_it_black()
         self.populate_field()
 
@@ -156,9 +140,10 @@ class Firefield:
         self.ctx.set_source(self.pattern["background"])
         self.ctx.paint()
 
-    def draw_vector(self, firefly, vector, color, magnitude=0.01):
+    def draw_vector(self, firefly, vector, color, magnitude=0.1):
         xc, yc = firefly.get_position()
-        v = magnitude * (vector / np.linalg.norm(vector))
+        # v = magnitude * (vector / np.linalg.norm(vector))
+        v = magnitude * vector
         self.ctx.move_to(xc, yc)
         self.ctx.line_to(xc + v[0], yc + v[1])
         self.ctx.close_path()
@@ -189,29 +174,59 @@ class Firefield:
             self.fly()
             self.writer.write_frame(self.pixel_array)
             written_frames += 1
-            print(str((written_frames / total_frames) * 100) + " %", end='\r')
+            print(str((written_frames / total_frames) * 100) + " %", end="\r")
         self.writer.close_movie_pipe()
 
     def fly(self):
+        time_since_last_frame = 0.0
         for firefly in self.fireflies:
             if not firefly.flying():
                 firefly.set_flight_time(get_random_flight_time())
-                firefly.calculate_dt(self.frame_rate)
                 firefly.set_target(get_random_vector(self.max_magnitude))
-                firefly.init_acceleration()
+                firefly.update_acceleration()
                 firefly.change_color()
                 firefly.set_flying()
-            firefly.move(self.pixel_width, self.pixel_height)
+
+            # Draw Firefly at current position
             self.draw_firefly(
-                firefly, cairo.SolidPattern(*hex_to_rgb(firefly.get_color()))
+                firefly=firefly,
+                pattern=cairo.SolidPattern(*hex_to_rgb(firefly.get_color())),
             )
-            if not firefly.increment_elapsed_time():
-                firefly.reset()
+            # Draw some vectors for debugging
+            # self.draw_vector(firefly, firefly.get_velocity(), BLUE)
+            # self.draw_vector(firefly, firefly.get_target(), GREEN)
+            # self.draw_vector(firefly, firefly.get_acceleration(), RED)
+            # self.draw_vector(firefly, field_retardation, YELLOW)
+
+            time_since_last_frame %= self.render_dt
+            while time_since_last_frame < self.render_dt:
+                # Calculate vector field at current position
+                field_retardation = get_field_retardation(
+                    position=firefly.get_position(), field_dimensions=self.dimensions
+                )
+
+                # Update firefly for current dt
+                net_acceleration = firefly.get_acceleration() + field_retardation
+                firefly.update_velocity(dv=net_acceleration * self.sim_dt)
+                firefly.nudge(self.sim_dt)
+
+                # Correct firefly position if she has moved out of the
+                # field.  This essentially imitates a donut shaped field.
+                position = firefly.get_position()
+                firefly.set_position(position % self.dimensions)
+                if firefly.increment_elapsed_time(self.sim_dt):
+                    firefly.update_acceleration()
+                else:
+                    # Reset fly if fly has reached its current flight time
+                    firefly.reset()
+
+                time_since_last_frame += self.sim_dt
 
 
 def main():
-    field = Firefield(40)
-    field.begin_animation(60)
+    field = Firefield(100)
+    field.begin_animation(300)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
