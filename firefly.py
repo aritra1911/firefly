@@ -1,3 +1,5 @@
+import warnings
+
 import cairo
 import numpy as np
 
@@ -11,7 +13,6 @@ class Firefly:
         self.set_position(position)
         self.set_velocity(np.zeros(2))
         self.set_target(np.zeros(2))
-        self.set_acceleration(np.zeros(2))
         self.set_flight_time(0.0)
         self.clear_elapsed_time()
         self.radius = DEFAULT_GLOW_RADIUS
@@ -19,7 +20,7 @@ class Firefly:
         self.in_flight = False
 
     def __repr__(self):
-        return f"position={self.position}, accleration={self.acceleration}, velocity={self.velocity}, in_flight={self.in_flight}"
+        return f"position={self.position}, accleration={self.get_acceleration()}, velocity={self.velocity}, in_flight={self.in_flight}"
 
     def get_position(self):
         return self.position
@@ -29,9 +30,6 @@ class Firefly:
 
     def get_target(self):
         return self.target
-
-    def get_acceleration(self):
-        return self.acceleration
 
     def get_radius(self):
         return self.radius
@@ -75,13 +73,13 @@ class Firefly:
             self.in_flight = False
             self.clear_elapsed_time()
 
-    def set_acceleration(self, vector):
-        self.acceleration = vector
-
-    def update_acceleration(self):
-        delta_v = self.target - self.velocity
+    def get_acceleration(self):
         remaining_time = self.flight_time - self.elapsed_time
-        self.acceleration = delta_v / remaining_time
+        if not remaining_time:
+            return np.zeros(2)
+
+        delta_v = self.target - self.velocity
+        return delta_v / remaining_time
 
     def update_velocity(self, dv):
         self.velocity += dv
@@ -114,6 +112,13 @@ class Firefield:
         self.dimensions = self.get_dimensions()
         self.sim_dt = DEFAULT_SIM_TIMESTEP
         self.render_dt = 1.0 / self.frame_rate
+
+        # We usually expect sim_dt to be much smaller than render_dt.
+        if self.sim_dt > self.render_dt:
+            warnings.warn(
+                "Simulation time step is greater than frame render time step."
+            )
+
         self.init_field()
 
     def get_dimensions(self) -> float:
@@ -217,7 +222,6 @@ class Firefield:
                 if not firefly.flying():
                     firefly.set_flight_time(get_random_flight_time())
                     firefly.set_target(get_random_vector(self.max_magnitude))
-                    firefly.update_acceleration()
                     firefly.change_color()
                     firefly.set_flying()
                     continue
@@ -231,15 +235,29 @@ class Firefield:
                 net_acceleration = firefly.get_acceleration() + field_retardation
                 firefly.update_velocity(dv=net_acceleration * self.sim_dt)
                 firefly.nudge(self.sim_dt)
-                firefly.update_acceleration()
+                firefly.increment_elapsed_time(self.sim_dt)
 
                 # Rectify firefly position if she has moved out of the
                 # field.  This essentially imitates a donut shaped
                 # field.
                 position = firefly.get_position()
                 firefly.set_position(position % self.dimensions)
-
-                firefly.increment_elapsed_time(self.sim_dt)
+                if np.any(field_retardation):
+                    # We don't expect this to rectify anything if a
+                    # suitable vector field is implemented to repel the
+                    # fireflies with an opposite direction infinite
+                    # magnitude vector at the edges of the canvas.
+                    try:
+                        assert np.array_equal(firefly.get_position(), position)
+                    except AssertionError:
+                        # If this is encountered, then reduce
+                        # simulation time step: sim_dt to allow for
+                        # more simulation cycles between rendering
+                        # frames.
+                        warnings.warn(
+                            "Rectified firefly position despite being in an "
+                            "active vector field.",
+                        )
 
             time_since_last_frame += self.sim_dt
 
